@@ -66,8 +66,8 @@
         }
 
         .logo {
-            width: 80px;
-            height: 80px;
+            width: 160px;
+            height: 160px;
         }
 
         .search-section {
@@ -495,13 +495,13 @@
     <div class="container">
         <div class="header">
             <div class="header-content">
-                <canvas id="leftLogo" class="logo" width="80" height="80"></canvas>
+                <canvas id="leftLogo" class="logo" width="160" height="160"></canvas>
                 <div class="header-text">
                     <h1>CWAGS Tracker</h1>
                     <p>Track your dog's trialing progress, Q's, and title eligibility</p>
                     <div class="last-updated" id="lastUpdated">Loading data...</div>
                 </div>
-                <canvas id="rightLogo" class="logo" width="80" height="80"></canvas>
+                <canvas id="rightLogo" class="logo" width="160" height="160"></canvas>
             </div>
         </div>
 
@@ -631,14 +631,11 @@
             const canvas = document.getElementById(canvasId);
             if (canvas) {
                 const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, 80, 80);
-                
-                // Calculate scaling to fit the logo nicely in the 80x80 canvas
-                const scale = Math.min(80 / img.width, 80 / img.height) * 0.9; // 0.9 for padding
-                const scaledWidth = img.width * scale;
-                const scaledHeight = img.height * scale;
-                const x = (80 - scaledWidth) / 2;
-                const y = (80 - scaledHeight) / 2;
+               ctx.clearRect(0, 0, 160, 160);
+// and later...
+const scale = Math.min(160 / img.width, 160 / img.height) * 0.9;
+const x = (160 - scaledWidth) / 2;
+const y = (160 - scaledHeight) / 2;
                 
                 ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
             }
@@ -657,7 +654,7 @@
                 ctx.font = 'bold 12px Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText('C-WAGS', 40, 40);
+                ctx.fillText('C-WAGS', 80, 80);  // Changed from 40, 40
             }
         });
     };
