@@ -1,4 +1,372 @@
-<!DOCTYPE html>
+function displaySummary(records) {
+            const dogName = records[0].callName || 'Unknown';
+            const regNumber = records[0].registrationNumber;
+            
+            const levelSummary = {};
+            
+            // Group records by level
+            records.forEach(record => {
+                if (!record.level) return;
+                
+                if (!levelSummary[record.level]) {
+                    levelSummary[record.level] = {
+                        totalPoints: 0,
+                        judges: new Set(),
+                        records: []
+                    };
+                }
+                
+                if (record.points > 0) {
+                    levelSummary[record.level].totalPoints += record.points;
+                    if (record.judge) {
+                        levelSummary[record.level].judges.add(record.judge);
+                    }
+                }
+                levelSummary[record.level].records.push(record);
+            });
+
+            // Apply validation rules
+            const validatedLevels = applyValidationRules(levelSummary);
+
+            let html = `
+                <div class="dog-info">
+                    <h3>${dogName}</h3>
+                    <p><strong>Registration:</strong> ${regNumber}</p>
+                    <p><strong>Total Trialing Records:</strong> ${records.length}</p>
+                </div>
+            `;
+            
+            getSortedLevels(levelSummary).forEach(level => {
+                const summary = levelSummary[level];
+                const isValidated = validatedLevels[level];
+                const judgeCount = summary.judges.size;
+                
+                const hasTitleRequirements = summary.totalPoints >= 4 && judgeCount >= 2 && isValidated;
+                
+                // For Games levels, also check if they have enough different games
+                let gamesInfo = '';
+                if (level.startsWith('Games ')) {
+                    const uniqueGames = getUniqueGames(summary.records);
+                    gamesInfo = `<div><span>Different Games:</span> <strong>${uniqueGames.size}/2</strong> (${Array.from(uniqueGames).join(', ') || 'None'})</div>`;
+                }
+                
+                // Calculate title points and ace points
+                let titlePoints = 0;
+                let acePoints = 0;
+                let titleStatus = '';
+                let titleClass = '';
+                let titleInfo = null;
+                
+                if (hasTitleRequirements) {
+                    // Find the point at which title was earned (when both 4 points and 2 judges were achieved)
+                    titleInfo = calculateTitlePoints(summary.records);
+                    titlePoints = titleInfo.titlePoints;
+                    const titleDate = titleInfo.titleDate;
+                    acePoints = Math.max(0, summary.totalPoints - titlePoints);
+                    
+                    const officialTitle = titleAbbreviations[level] || level;
+                    
+                    if (acePoints >= 10) {
+                        const aceCount = Math.floor(acePoints / 10);
+                        if (aceCount === 1) {
+                            titleStatus = `${officialTitle}A`;
+                        } else {
+                            titleStatus = `${officialTitle}Ax${aceCount}`;
+                        }
+                        titleClass = 'title-earned';
+                    } else {
+                        titleStatus = `${officialTitle} Title Earned`;
+                        titleClass = 'title-earned';
+                    }
+                } else {
+                    titleStatus = 'No Title Yet';
+                    titleClass = 'no-title';
+                }
+                
+                html += `
+                    <div class="level-summary">
+                        <div class="level-info">
+                            <h4>${level}</h4>
+                            <div class="title-status ${titleClass}">${titleStatus}</div>
+                            
+                            <div class="points-breakdown">
+                                <div><span>Total Q's:</span> <strong>${summary.totalPoints}</strong></div>
+                                <div><span>Judges:</span> <strong>${judgeCount}/2</strong></div>
+                                ${gamesInfo}
+                                ${hasTitleRequirements ? `
+                                    <div><span>Q's Towards Title:</span> <strong>${titlePoints}</strong></div>
+                                    <div><span>Q's Towards Ace:</span> <strong class="ace-info">${acePoints}</strong></div>
+                                    ${titleInfo && titleInfo.titleDate ? `<div style="color: #28a745; font-size: 0.85rem;"><span>Title Earned:</span> <strong>${titleInfo.titleDate instanceof Date && !isNaN(titleInfo.titleDate) ? titleInfo.titleDate.toLocaleDateString() : 'N/A'}</strong></div>` : ''}
+                                    ${(() => {
+                                        const aceEarnedDates = findAceEarnedDates(summary.records, titlePoints);
+                                        if (aceEarnedDates.length > 0) {
+                                            const latestAce = aceEarnedDates[aceEarnedDates.length - 1];
+                                            const aceDate = latestAce.date instanceof Date && !isNaN(latestAce.date) ? latestAce.date.toLocaleDateString() : 'N/A';
+                                            return `<div style="color: #6f42c1; font-size: 0.85rem;"><span>Latest Ace Earned:</span> <strong>${aceDate}</strong></div>`;
+                                        }
+                                        return '';
+                                    })()}
+                                    ${acePoints < 10 && acePoints >= 0 ? `<div class="ace-info"><span>Q's until next Ace:</span> <strong>${10 - (acePoints % 10)}</strong></div>` : 
+                                    acePoints >= 10 ? `<div class="ace-info"><span>Q's until next Ace:</span> <strong>${10 - (acePoints % 10)}</strong></div>` : ''}
+                                ` : `
+                                    <div style="color: #dc3545;">
+                                        <div><span>Need:</span> ${summary.totalPoints < 4 ? `${4 - summary.totalPoints} more Q's` : ''}
+                                        ${summary.totalPoints < 4 && judgeCount < 2 ? ', ' : ''}
+                                        ${judgeCount < 2 ? `${2 - judgeCount} more judge${judgeCount === 0 ? 's' : ''}` : ''}
+                                        ${level.startsWith('Games ') && getUniqueGames(summary.records).size < 2 ? 
+                                            `${(summary.totalPoints < 4 || judgeCount < 2) ? ', ' : ''}${2 - getUniqueGames(summary.records).size} more different game${getUniqueGames(summary.records).size === 0 ? 's' : ''}` : ''}</div>
+                                        ${!isValidated && !level.startsWith('Games ') ? `<div><span>Prerequisites:</span> ${getPrerequisiteText(level)}</div>` : ''}
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                        <button class="details-btn" onclick="showLevelDetails('${level}', '${dogName}')">Details</button>
+                    </div>
+                `;
+            });
+
+            document.getElementById('summaryContent').innerHTML = html || '<div class="error-message">No level data to display</div>';
+        }
+
+        function calculateTitlePoints(records) {
+            // Sort records chronologically
+            const sortedRecords = records
+                .filter(r => r.points > 0 && r.date instanceof Date && !isNaN(r.date))
+                .sort((a, b) => a.date - b.date);
+            
+            let cumulativePoints = 0;
+            let judges = new Set();
+            
+            for (const record of sortedRecords) {
+                const prevPoints = cumulativePoints;
+                const prevJudgeCount = judges.size;
+                
+                cumulativePoints += record.points;
+                if (record.judge) judges.add(record.judge);
+                
+                // Check if title requirements are NOW met (but weren't before)
+                const nowHasTitle = cumulativePoints >= 4 && judges.size >= 2;
+                const previouslyHadTitle = prevPoints >= 4 && prevJudgeCount >= 2;
+                
+                if (nowHasTitle && !previouslyHadTitle) {
+                    // Title was just earned with this record
+                    // Calculate how many points from this record went to earning the title
+                    let pointsTowardTitle = record.points;
+                    
+                    // If we already had 4+ points but needed another judge
+                    if (prevPoints >= 4 && prevJudgeCount < 2) {
+                        // Only 1 point goes to title (to satisfy the minimum), rest goes to ace
+                        pointsTowardTitle = 1;
+                    }
+                    // If we had 2+ judges but needed more points
+                    else if (prevJudgeCount >= 2 && prevPoints < 4) {
+                        // Only enough points to reach 4 go to title
+                        pointsTowardTitle = 4 - prevPoints;
+                    }
+                    // If we needed both conditions
+                    else if (prevPoints < 4 && prevJudgeCount < 2) {
+                        // Enough points to reach 4, or all the points if less than needed
+                        pointsTowardTitle = Math.min(record.points, 4 - prevPoints);
+                    }
+                    
+                    return {
+                        titlePoints: prevPoints + pointsTowardTitle,
+                        titleDate: record.date
+                    };
+                }
+            }
+            
+            // If we get here, either no title was earned, or all points go to title
+            return {
+                titlePoints: cumulativePoints,
+                titleDate: sortedRecords[sortedRecords.length - 1]?.date
+            };
+        }
+
+        function findAceEarnedDates(records, titlePoints) {
+            const sortedRecords = records
+                .filter(r => r.points > 0 && r.date instanceof Date && !isNaN(r.date))
+                .sort((a, b) => a.date - b.date);
+            
+            let cumulativePoints = 0;
+            const aceEarnedDates = [];
+            
+            for (const record of sortedRecords) {
+                const prevPoints = cumulativePoints;
+                cumulativePoints += record.points;
+                
+                // Check for ace milestones after title was earned
+                if (prevPoints >= titlePoints && cumulativePoints > titlePoints) {
+                    const prevAcePoints = prevPoints - titlePoints;
+                    const newAcePoints = cumulativePoints - titlePoints;
+                    
+                    const prevAceCount = Math.floor(prevAcePoints / 10);
+                    const newAceCount = Math.floor(newAcePoints / 10);
+                    
+                    // If ace count increased, record when each ace was earned
+                    for (let i = prevAceCount + 1; i <= newAceCount; i++) {
+                        aceEarnedDates.push({
+                            aceNumber: i,
+                            date: record.date
+                        });
+                    }
+                }
+            }
+            
+            return aceEarnedDates;
+        }
+
+        function applyValidationRules(levelSummary) {
+            const validatedLevels = {};
+            
+            // First, mark all levels without prerequisites as valid (but check Games separately)
+            Object.keys(levelSummary).forEach(level => {
+                if (!prerequisites[level] && !level.startsWith('Games ')) {
+                    validatedLevels[level] = true;
+                }
+            });
+
+            // Handle Games levels specially - they need 2+ different games
+            Object.keys(levelSummary).forEach(level => {
+                if (level.startsWith('Games ')) {
+                    const summary = levelSummary[level];
+                    const uniqueGames = getUniqueGames(summary.records);
+                    const hasEnoughGames = uniqueGames.size >= 2;
+                    const hasBasicRequirements = summary.totalPoints >= 4 && summary.judges.size >= 2;
+                    validatedLevels[level] = hasEnoughGames && hasBasicRequirements;
+                }
+            });
+
+            // Then validate levels with prerequisites
+            Object.keys(prerequisites).forEach(level => {
+                if (!levelSummary[level]) {
+                    validatedLevels[level] = false;
+                    return;
+                }
+
+                let meetsPrereqCriteria = false;
+
+                if (level === "Investigator 3") {
+                    // Special case: requires either Patrol 1 OR Detective 2
+                    const patrol1Valid = checkLevelRequirements(levelSummary["Patrol 1"]);
+                    const detective2Valid = checkLevelRequirements(levelSummary["Detective 2"]);
+                    meetsPrereqCriteria = patrol1Valid || detective2Valid;
+                } else {
+                    // Standard case: check direct prerequisite
+                    const prereqLevel = prerequisites[level][0];
+                    meetsPrereqCriteria = checkLevelRequirements(levelSummary[prereqLevel]);
+                }
+
+                validatedLevels[level] = meetsPrereqCriteria;
+            });
+
+            return validatedLevels;
+        }
+
+        function getUniqueGames(records) {
+            const games = new Set();
+            const gamesList = ['BJ', 'C', 'P', 'T', 'GB'];
+            
+            records.forEach(record => {
+                if (record.results) {
+                    const results = record.results.toString().toUpperCase();
+                    gamesList.forEach(game => {
+                        if (results.includes(game)) {
+                            games.add(game);
+                        }
+                    });
+                }
+            });
+            
+            return games;
+        }
+
+        function checkLevelRequirements(levelData) {
+            if (!levelData) return false;
+            return levelData.totalPoints >= 4 && levelData.judges.size >= 2;
+        }
+
+        function getPrerequisiteText(level) {
+            if (!prerequisites[level]) return 'None';
+            
+            if (level === "Investigator 3") {
+                return 'Either "Patrol 1" OR "Detective 2" (4+ Q\'s, 2+ judges each)';
+            }
+            
+            return `"${prerequisites[level][0]}" (4+ Q's, 2+ judges)`;
+        }
+
+        function showLevelDetails(level, dogName) {
+            const records = currentDogRecords.filter(r => r.level === level);
+            
+            document.getElementById('modalTitle').textContent = `${dogName} - ${level} Details`;
+            
+            let html = `
+                <table class="records-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Judge</th>
+                            <th>Results</th>
+                            <th>Q's</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            records.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            records.forEach(record => {
+                const date = record.date && record.date instanceof Date && !isNaN(record.date) 
+                    ? record.date.toLocaleDateString() 
+                    : 'N/A';
+                const pointsClass = record.points > 0 ? 'points-badge' : 'points-badge zero';
+                
+                html += `
+                    <tr>
+                        <td>${date}</td>
+                        <td>${record.judge || 'N/A'}</td>
+                        <td>${record.results || 'N/A'}</td>
+                        <td><span class="${pointsClass}">${record.points}</span></td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('detailsModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('detailsModal').style.display = 'none';
+        }
+
+        // Initialize - but make it more immediate
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, starting data load...');
+            // Show we're ready immediately
+            document.getElementById('lastUpdated').textContent = 'Loading data...';
+            
+            // Load logos immediately
+            loadLogos();
+            
+            // Load data with a small delay to ensure DOM is ready
+            setTimeout(() => {
+                loadDataFromFile();
+            }, 100);
+        });
+
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('detailsModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        };
+    </script>
+</body>
+</html><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -417,10 +785,11 @@
             color: #2c3e50;
             writing-mode: vertical-lr;
             text-orientation: mixed;
-            min-width: 40px;
-            max-width: 50px;
+            min-width: 50px;
+            max-width: 60px;
             font-size: 0.8rem;
-            padding: 4px 2px;
+            padding: 8px 4px;
+            line-height: 1.2;
         }
 
         .owner-grid tr:nth-child(even) {
@@ -500,7 +869,7 @@
                        placeholder="Enter Registration Number (e.g., 17-1734-06)" 
                        onkeypress="handleKeyPress(event)">
                 <button class="search-btn" onclick="searchDog()">Search Dog Records</button>
-                <button class="owner-view-btn" onclick="showOwnerView()">Owner View - All Dogs</button>
+                <button class="owner-view-btn" onclick="showOwnerView()">Owner View by ID</button>
             </div>
         </div>
 
@@ -735,266 +1104,116 @@
                 return;
             }
 
-            // Group all records by registration number (middle 4 digits)
-            const dogGroups = {};
+            // Show input for owner ID (middle 4 digits)
+            document.getElementById('summaryContent').innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <h3 style="color: #17a2b8; margin-bottom: 20px;">👤 Owner View</h3>
+                    <p style="margin-bottom: 20px;">Enter the middle 4 digits from your registration number:</p>
+                    
+                    <div style="background: #f8f9fa; padding: 30px; border-radius: 12px; border: 2px solid #dee2e6; margin: 20px 0;">
+                        <input type="text" id="ownerIdInput" placeholder="e.g., 1734" 
+                               style="padding: 15px 20px; font-size: 1.2rem; border: 2px solid #ddd; border-radius: 10px; width: 200px; text-align: center;"
+                               onkeypress="handleOwnerKeyPress(event)" maxlength="4">
+                        <br><br>
+                        <button onclick="loadOwnerView()" style="background: #28a745; color: white; border: none; padding: 15px 30px; border-radius: 10px; cursor: pointer; font-size: 1.1rem;">
+                            📊 Load Owner View
+                        </button>
+                    </div>
+                    
+                    <button onclick="backToSearch()" style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                        ← Back to Search
+                    </button>
+                </div>
+            `;
+        }
+
+        function handleOwnerKeyPress(event) {
+            if (event.key === 'Enter') {
+                loadOwnerView();
+            }
+        }
+
+        function loadOwnerView() {
+            const ownerIdInput = document.getElementById('ownerIdInput');
+            if (!ownerIdInput) return;
+            
+            const ownerId = ownerIdInput.value.trim();
+            if (!ownerId) {
+                alert('Please enter the middle 4 digits');
+                return;
+            }
+
+            if (!/^\d{4}$/.test(ownerId)) {
+                alert('Please enter exactly 4 digits');
+                return;
+            }
+
+            // Find all dogs for this owner
+            const ownerDogs = {};
             
             trialingData.forEach(record => {
                 if (!record.registrationNumber) return;
                 
-                // Extract middle 4 digits
                 const parts = record.registrationNumber.split('-');
-                if (parts.length >= 2) {
-                    const middleDigits = parts[1];
+                if (parts.length >= 2 && parts[1] === ownerId) {
+                    const regNumber = record.registrationNumber;
                     const callName = record.callName || 'Unknown';
                     
-                    if (!dogGroups[middleDigits]) {
-                        dogGroups[middleDigits] = {
+                    if (!ownerDogs[regNumber]) {
+                        ownerDogs[regNumber] = {
                             callName: callName,
+                            regNumber: regNumber,
                             records: []
                         };
                     }
-                    dogGroups[middleDigits].records.push(record);
+                    ownerDogs[regNumber].records.push(record);
                 }
             });
 
-            console.log('Dog groups:', dogGroups);
-            console.log('Number of dogs found:', Object.keys(dogGroups).length);
-
-            // Create the owner view table
-            displayOwnerView(dogGroups);
-        }
-
-        function displayOwnerView(dogGroups) {
-            console.log('Displaying owner view with dog groups:', dogGroups);
-            
-            if (Object.keys(dogGroups).length === 0) {
-                document.getElementById('summaryContent').innerHTML = `
-                    <button class="back-to-search" onclick="backToSearch()">← Back to Search</button>
-                    <div class="error-message">No dogs found in the data. Make sure your data file is loaded and contains valid registration numbers.</div>
-                `;
+            if (Object.keys(ownerDogs).length === 0) {
+                alert(`No dogs found for owner ID: ${ownerId}`);
                 return;
             }
-            
-            let html = `
-                <button class="back-to-search" onclick="backToSearch()">← Back to Search</button>
-                <div class="owner-view-container">
-                    <table class="owner-grid">
-                        <thead>
-                            <tr>
-                                <th class="level-cell">Level</th>
-            `;
 
-            // Sort dogs by call name for consistent display - with null checking
-            const sortedDogs = Object.keys(dogGroups).sort((a, b) => {
-                const nameA = dogGroups[a].callName || 'Unknown';
-                const nameB = dogGroups[b].callName || 'Unknown';
+            displayOwnerGrid(ownerDogs, ownerId);
+        }
+
+        function displayOwnerGrid(ownerDogs, ownerId) {
+            const sortedDogs = Object.keys(ownerDogs).sort((a, b) => {
+                const nameA = ownerDogs[a].callName || 'Unknown';
+                const nameB = ownerDogs[b].callName || 'Unknown';
                 return nameA.localeCompare(nameB);
             });
 
-            console.log('Sorted dogs:', sortedDogs);
-
-            // Add dog headers (call names)
-            sortedDogs.forEach(middleDigits => {
-                const callName = dogGroups[middleDigits].callName || 'Unknown';
-                html += `<th class="dog-header">${callName}<br>(${middleDigits})</th>`;
-            });
-
-            html += `</tr></thead><tbody>`;
-
-            // For each level, show the Q's needed for each dog
-            levelOrder.forEach(level => {
-                html += `<tr><td class="level-cell">${level}</td>`;
-                
-                sortedDogs.forEach(middleDigits => {
-                    const dogRecords = dogGroups[middleDigits].records.filter(r => r.level === level);
-                    const qsNeeded = calculateQsNeeded(dogRecords, level, dogGroups[middleDigits].records);
-                    
-                    let cellClass = 'no-data';
-                    let cellContent = '-';
-                    
-                    if (dogRecords.length > 0) {
-                        if (qsNeeded.status === 'title-ready') {
-                            cellClass = 'title-ready';
-                            cellContent = 'Title Ready!';
-                        } else if (qsNeeded.status === 'ace-progress') {
-                            cellClass = 'ace-progress';
-                            cellContent = `${qsNeeded.value}Q to Ace`;
-                        } else {
-                            cellClass = 'q-needed';
-                            cellContent = `${qsNeeded.value}Q`;
-                        }
-                    }
-                    
-                    html += `<td class="${cellClass}">${cellContent}</td>`;
-                });
-                
-                html += `</tr>`;
-            });
-
-            html += `</tbody></table></div>`;
-            
-            console.log('Setting owner view HTML');
-            document.getElementById('summaryContent').innerHTML = html;
-        }
-
-        function calculateQsNeeded(levelRecords, level, allDogRecords) {
-            if (levelRecords.length === 0) {
-                return { status: 'no-data', value: 0 };
-            }
-
-            // Calculate current totals for this level
-            const levelSummary = {
-                totalPoints: 0,
-                judges: new Set(),
-                records: levelRecords
-            };
-            
-            levelRecords.forEach(record => {
-                if (record.points > 0) {
-                    levelSummary.totalPoints += record.points;
-                    if (record.judge) {
-                        levelSummary.judges.add(record.judge);
-                    }
-                }
-            });
-
-            // Check prerequisites
-            const isValidated = checkPrerequisites(level, allDogRecords);
-            
-            // Check if title requirements are met
-            const hasEnoughQs = levelSummary.totalPoints >= 4;
-            const hasEnoughJudges = levelSummary.judges.size >= 2;
-            let hasEnoughGames = true;
-            
-            if (level.startsWith('Games ')) {
-                const uniqueGames = getUniqueGames(levelRecords);
-                hasEnoughGames = uniqueGames.size >= 2;
-            }
-            
-            const hasTitleRequirements = hasEnoughQs && hasEnoughJudges && hasEnoughGames && isValidated;
-            
-            if (hasTitleRequirements) {
-                // Title is earned, calculate ace progress
-                const titleInfo = calculateTitlePoints(levelRecords);
-                const acePoints = Math.max(0, levelSummary.totalPoints - titleInfo.titlePoints);
-                const qsUntilNextAce = 10 - (acePoints % 10);
-                
-                return { 
-                    status: 'ace-progress', 
-                    value: qsUntilNextAce === 10 ? 10 : qsUntilNextAce 
-                };
-            } else {
-                // Calculate what's needed for title
-                let qsNeeded = 0;
-                
-                if (!hasEnoughQs) {
-                    qsNeeded = Math.max(qsNeeded, 4 - levelSummary.totalPoints);
-                }
-                
-                if (!hasEnoughJudges && hasEnoughQs) {
-                    qsNeeded = Math.max(qsNeeded, 1); // Need at least 1 more Q from different judge
-                }
-                
-                if (!hasEnoughJudges && !hasEnoughQs) {
-                    qsNeeded = Math.max(qsNeeded, 4 - levelSummary.totalPoints);
-                }
-                
-                return { status: 'needs-title', value: qsNeeded };
-            }
-        }
-
-        function checkPrerequisites(level, allDogRecords) {
-            if (!prerequisites[level] && !level.startsWith('Games ')) {
-                return true;
-            }
-            
-            if (level.startsWith('Games ')) {
-                return true; // Games validation handled separately
-            }
-            
-            if (level === "Investigator 3") {
-                // Special case: requires either Patrol 1 OR Detective 2
-                const patrol1Records = allDogRecords.filter(r => r.level === "Patrol 1");
-                const detective2Records = allDogRecords.filter(r => r.level === "Detective 2");
-                
-                const patrol1Valid = checkLevelTitleRequirements(patrol1Records);
-                const detective2Valid = checkLevelTitleRequirements(detective2Records);
-                
-                return patrol1Valid || detective2Valid;
-            } else {
-                // Standard case
-                const prereqLevel = prerequisites[level][0];
-                const prereqRecords = allDogRecords.filter(r => r.level === prereqLevel);
-                return checkLevelTitleRequirements(prereqRecords);
-            }
-        }
-
-        function checkLevelTitleRequirements(records) {
-            if (records.length === 0) return false;
-            
-            let totalPoints = 0;
-            const judges = new Set();
-            
-            records.forEach(record => {
-                if (record.points > 0) {
-                    totalPoints += record.points;
-                    if (record.judge) judges.add(record.judge);
-                }
-            });
-            
-            return totalPoints >= 4 && judges.size >= 2;
-        }
-
-        function showOwnerView() {
-            if (trialingData.length === 0) {
-                alert('Please wait for trialing data to load');
-                return;
-            }
-
-            // Group all records by registration number (middle 4 digits)
-            const dogGroups = {};
-            
-            trialingData.forEach(record => {
-                if (!record.registrationNumber) return;
-                
-                // Extract middle 4 digits
-                const parts = record.registrationNumber.split('-');
-                if (parts.length >= 2) {
-                    const middleDigits = parts[1];
-                    const callName = record.callName || 'Unknown';
-                    
-                    if (!dogGroups[middleDigits]) {
-                        dogGroups[middleDigits] = {
-                            callName: callName,
-                            records: []
-                        };
-                    }
-                    dogGroups[middleDigits].records.push(record);
-                }
-            });
-
-            // Create the owner view table
-            displayOwnerView(dogGroups);
-        }
-
-        function displayOwnerView(dogGroups) {
             let html = `
-                <button class="back-to-search" onclick="backToSearch()">← Back to Search</button>
-                <div class="owner-view-container">
+                <div class="owner-header" style="text-align: center; padding: 20px; background: linear-gradient(45deg, #667eea, #764ba2); color: white; margin-bottom: 20px; border-radius: 12px;">
+                    <h2>Owner View - ID: ${ownerId}</h2>
+                    <p>${Object.keys(ownerDogs).length} dog(s) found</p>
+                </div>
+                
+                <div style="margin-bottom: 20px; text-align: center;">
+                    <button class="back-to-search" onclick="showOwnerView()" style="margin-right: 10px;">← Change Owner ID</button>
+                    <button onclick="printOwnerView()" style="background: #6f42c1; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 1rem;">
+                        🖨️ Print View
+                    </button>
+                </div>
+                
+                <div class="owner-view-container" id="printableArea">
+                    <div class="print-header" style="display: none;">
+                        <h2 style="text-align: center; margin-bottom: 5px;">C-WAGS Owner Progress Report</h2>
+                        <p style="text-align: center; margin-bottom: 20px;">Owner ID: ${ownerId} | ${Object.keys(ownerDogs).length} Dogs | Generated: ${new Date().toLocaleDateString()}</p>
+                    </div>
+                    
                     <table class="owner-grid">
                         <thead>
                             <tr>
                                 <th class="level-cell">Level</th>
             `;
 
-            // Sort dogs by call name for consistent display
-            const sortedDogs = Object.keys(dogGroups).sort((a, b) => 
-                dogGroups[a].callName.localeCompare(dogGroups[b].callName)
-            );
-
-            // Add dog headers (call names)
-            sortedDogs.forEach(middleDigits => {
-                html += `<th class="dog-header">${dogGroups[middleDigits].callName}<br>(${middleDigits})</th>`;
+            // Add dog headers (call names with registration numbers)
+            sortedDogs.forEach(regNumber => {
+                const dog = ownerDogs[regNumber];
+                html += `<th class="dog-header">${dog.callName}<br><small>${regNumber}</small></th>`;
             });
 
             html += `</tr></thead><tbody>`;
@@ -1003,35 +1222,363 @@
             levelOrder.forEach(level => {
                 html += `<tr><td class="level-cell">${level}</td>`;
                 
-                sortedDogs.forEach(middleDigits => {
-                    const dogRecords = dogGroups[middleDigits].records.filter(r => r.level === level);
-                    const qsNeeded = calculateQsNeeded(dogRecords, level, dogGroups[middleDigits].records);
+                sortedDogs.forEach(regNumber => {
+                    const dog = ownerDogs[regNumber];
+                    const dogRecords = dog.records.filter(r => r.level === level);
+                    const analysis = analyzeProgressForOwnerView(dogRecords, level, dog.records);
                     
-                    let cellClass = 'no-data';
-                    let cellContent = '-';
-                    
-                    if (dogRecords.length > 0) {
-                        if (qsNeeded.status === 'title-ready') {
-                            cellClass = 'title-ready';
-                            cellContent = 'Title Ready!';
-                        } else if (qsNeeded.status === 'ace-progress') {
-                            cellClass = 'ace-progress';
-                            cellContent = `${qsNeeded.value}Q to Ace`;
-                        } else {
-                            cellClass = 'q-needed';
-                            cellContent = `${qsNeeded.value}Q`;
-                        }
-                    }
-                    
-                    html += `<td class="${cellClass}">${cellContent}</td>`;
+                    html += `<td class="${analysis.cellClass}">${analysis.cellContent}</td>`;
                 });
                 
                 html += `</tr>`;
             });
 
             html += `</tbody></table></div>`;
+
+            // Add legend
+            html += `
+                <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                    <h4 style="margin-bottom: 10px;">Legend:</h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 15px; font-size: 0.9rem;">
+                        <div><span style="background: #fff3cd; padding: 2px 6px; border-radius: 3px;">2Q</span> Q's needed for title</div>
+                        <div><span style="background: #d4edda; padding: 2px 6px; border-radius: 3px;">Title!</span> Title earned, ready to submit</div>
+                        <div><span style="background: #e7e3ff; padding: 2px 6px; border-radius: 3px;">3Q→Ace</span> Q's needed for next Ace</div>
+                        <div><span style="background: #f8d7da; padding: 2px 6px; border-radius: 3px;">-</span> No qualifying scores</div>
+                    </div>
+                    <p style="margin-top: 10px; font-size: 0.85rem; color: #6c757d;">
+                        <strong>Requirements:</strong> 4+ Q's from 2+ judges for title | Games levels need 2+ different games | Prerequisites must be met
+                    </p>
+                </div>
+            `;
             
             document.getElementById('summaryContent').innerHTML = html;
+        }
+
+        function analyzeProgressForOwnerView(levelRecords, level, allDogRecords) {
+            if (levelRecords.length === 0) {
+                return { 
+                    cellClass: 'no-data', 
+                    cellContent: '-' 
+                };
+            }
+
+            // Calculate current totals for this level
+            let totalPoints = 0;
+            const judges = new Set();
+            
+            levelRecords.forEach(record => {
+                if (record.points > 0) {
+                    totalPoints += record.points;
+                    if (record.judge) {
+                        judges.add(record.judge);
+                    }
+                }
+            });
+
+            // Check prerequisites
+            const isValidated = checkPrerequisites(level, allDogRecords);
+            
+            // Check if title requirements are met
+            const hasEnoughQs = totalPoints >= 4;
+            const hasEnoughJudges = judges.size >= 2;
+            let hasEnoughGames = true;
+            
+            if (level.startsWith('Games ')) {
+                const uniqueGames = getUniqueGames(levelRecords);
+                hasEnoughGames = uniqueGames.size >= 2;
+            }
+            
+            const hasTitleRequirements = hasEnoughQs && hasEnoughJudges && hasEnoughGames && isValidated;
+            
+            if (hasTitleRequirements) {
+                // Title is earned, calculate ace progress
+                const titleInfo = calculateTitlePoints(levelRecords);
+                const acePoints = Math.max(0, totalPoints - titleInfo.titlePoints);
+                
+                if (acePoints === 0) {
+                    return {
+                        cellClass: 'title-ready',
+                        cellContent: 'Title!'
+                    };
+                } else {
+                    const qsUntilNextAce = 10 - (acePoints % 10);
+                    const aceCount = Math.floor(acePoints / 10);
+                    const aceSuffix = aceCount > 0 ? ` (${aceCount} Ace${aceCount > 1 ? 's' : ''})` : '';
+                    
+                    return {
+                        cellClass: 'ace-progress',
+                        cellContent: `${qsUntilNextAce}Q→Ace${aceSuffix}`
+                    };
+                }
+            } else {
+                // Calculate what's needed for title
+                let qsNeeded = Math.max(0, 4 - totalPoints);
+                let additionalNeeds = [];
+                
+                if (!hasEnoughJudges) {
+                    const judgesNeeded = 2 - judges.size;
+                    if (judgesNeeded > 0) {
+                        additionalNeeds.push(`${judgesNeeded}J`);
+                    }
+                }
+                
+                if (level.startsWith('Games ') && !hasEnoughGames) {
+                    const uniqueGames = getUniqueGames(levelRecords);
+                    const gamesNeeded = 2 - uniqueGames.size;
+                    if (gamesNeeded > 0) {
+                        additionalNeeds.push(`${gamesNeeded}G`);
+                    }
+                }
+                
+                if (!isValidated) {
+                    additionalNeeds.push('Prereq');
+                }
+                
+                let content = '';
+                if (qsNeeded > 0) {
+                    content = `${qsNeeded}Q`;
+                }
+                
+                if (additionalNeeds.length > 0) {
+                    if (content) content += '+';
+                    content += additionalNeeds.join('+');
+                }
+                
+                if (!content) content = 'Ready!';
+                
+                return {
+                    cellClass: qsNeeded > 0 || additionalNeeds.length > 0 ? 'q-needed' : 'title-ready',
+                    cellContent: content
+                };
+            }
+        }
+
+        function printOwnerView() {
+            // Create a new window for printing
+            const printWindow = window.open('', '_blank');
+            
+            // Get the printable content
+            const printableArea = document.getElementById('printableArea');
+            if (!printableArea) {
+                alert('No content to print');
+                return;
+            }
+            
+            // Clone the content and make the print header visible
+            const clonedContent = printableArea.cloneNode(true);
+            const printHeader = clonedContent.querySelector('.print-header');
+            if (printHeader) {
+                printHeader.style.display = 'block';
+            }
+            
+            // Create the print document
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>C-WAGS Owner Progress Report</title>
+                    <style>
+                        @page {
+                            size: 8.5in 11in;
+                            margin: 0.5in;
+                        }
+                        
+                        body {
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                            font-size: 10px;
+                            line-height: 1.2;
+                            margin: 0;
+                            padding: 0;
+                        }
+                        
+                        .print-header h2 {
+                            font-size: 16px;
+                            margin-bottom: 5px;
+                            color: #2c3e50;
+                        }
+                        
+                        .print-header p {
+                            font-size: 12px;
+                            color: #666;
+                            margin-bottom: 15px;
+                        }
+                        
+                        .owner-grid {
+                            width: 100%;
+                            border-collapse: collapse;
+                            font-size: 9px;
+                        }
+                        
+                        .owner-grid th,
+                        .owner-grid td {
+                            border: 1px solid #333;
+                            padding: 4px 2px;
+                            text-align: center;
+                            vertical-align: middle;
+                        }
+                        
+                        .owner-grid th {
+                            background: #2c3e50 !important;
+                            color: white !important;
+                            font-weight: 600;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        
+                        .owner-grid th.dog-header {
+                            background: #ecf0f1 !important;
+                            color: #2c3e50 !important;
+                            writing-mode: vertical-lr;
+                            text-orientation: mixed;
+                            min-width: 30px;
+                            max-width: 35px;
+                            font-size: 8px;
+                            padding: 2px 1px;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        
+                        .owner-grid .level-cell {
+                            background: #bdc3c7 !important;
+                            color: #2c3e50 !important;
+                            font-weight: 600;
+                            text-align: left;
+                            padding-left: 6px;
+                            font-size: 8px;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        
+                        .q-needed {
+                            background: #fff3cd !important;
+                            color: #856404 !important;
+                            font-weight: 600;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        
+                        .title-ready {
+                            background: #d4edda !important;
+                            color: #155724 !important;
+                            font-weight: 600;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        
+                        .ace-progress {
+                            background: #e7e3ff !important;
+                            color: #6f42c1 !important;
+                            font-weight: 600;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        
+                        .no-data {
+                            background: #f8f9fa !important;
+                            color: #6c757d !important;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        
+                        .legend-print {
+                            margin-top: 15px;
+                            font-size: 8px;
+                            page-break-inside: avoid;
+                        }
+                        
+                        .legend-print h4 {
+                            font-size: 10px;
+                            margin-bottom: 5px;
+                        }
+                        
+                        .legend-items {
+                            display: flex;
+                            flex-wrap: wrap;
+                            gap: 8px;
+                            margin-bottom: 8px;
+                        }
+                        
+                        .legend-item {
+                            display: flex;
+                            align-items: center;
+                            gap: 3px;
+                        }
+                        
+                        .legend-sample {
+                            padding: 1px 4px;
+                            border-radius: 2px;
+                            font-weight: 600;
+                            font-size: 7px;
+                            border: 1px solid #333;
+                        }
+                    </style>
+                </head>
+                <body>
+                    ${clonedContent.innerHTML}
+                    
+                    <div class="legend-print">
+                        <h4>Legend & Requirements:</h4>
+                        <div class="legend-items">
+                            <div class="legend-item">
+                                <span class="legend-sample q-needed">2Q</span>
+                                <span>Q's needed for title</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-sample title-ready">Title!</span>
+                                <span>Title earned</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-sample ace-progress">3Q→Ace</span>
+                                <span>Q's to next Ace</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-sample no-data">-</span>
+                                <span>No qualifying scores</span>
+                            </div>
+                        </div>
+                        <p style="margin: 0; color: #666;">
+                            <strong>Title Requirements:</strong> 4+ Q's from 2+ different judges | Games levels need 2+ different games (BJ, C, P, T, GB) | Prerequisites must be met for advanced levels
+                        </p>
+                    </div>
+                </body>
+                </html>
+            `);
+            
+            printWindow.document.close();
+            
+            // Wait for content to load, then print
+            printWindow.onload = function() {
+                setTimeout(() => {
+                    printWindow.print();
+                    printWindow.close();
+                }, 250);
+            };
+        }
+
+        function checkPrerequisites(level, allDogRecords) {
+            if (!prerequisites[level] && !level.startsWith('Games ')) {
+                return true;
+            }
+            
+            if (level.startsWith('Games ')) {
+                return true; // Games validation handled separately
+            }
+            
+            if (level === "Investigator 3") {
+                // Special case: requires either Patrol 1 OR Detective 2
+                const patrol1Records = allDogRecords.filter(r => r.level === "Patrol 1");
+                const detective2Records = allDogRecords.filter(r => r.level === "Detective 2");
+                
+                const patrol1Valid = checkLevelTitleRequirements(patrol1Records);
+                const detective2Valid = checkLevelTitleRequirements(detective2Records);
+                
+                return patrol1Valid || detective2Valid;
+            } else {
+                // Standard case
+                const prereqLevel = prerequisites[level][0];
+                const prereqRecords = allDogRecords.filter(r => r.level === prereqLevel);
+                return checkLevelTitleRequirements(prereqRecords);
+            }
         }
 
         function calculateQsNeeded(levelRecords, level, allDogRecords) {
@@ -1097,32 +1644,6 @@
                 }
                 
                 return { status: 'needs-title', value: qsNeeded };
-            }
-        }
-
-        function checkPrerequisites(level, allDogRecords) {
-            if (!prerequisites[level] && !level.startsWith('Games ')) {
-                return true;
-            }
-            
-            if (level.startsWith('Games ')) {
-                return true; // Games validation handled separately
-            }
-            
-            if (level === "Investigator 3") {
-                // Special case: requires either Patrol 1 OR Detective 2
-                const patrol1Records = allDogRecords.filter(r => r.level === "Patrol 1");
-                const detective2Records = allDogRecords.filter(r => r.level === "Detective 2");
-                
-                const patrol1Valid = checkLevelTitleRequirements(patrol1Records);
-                const detective2Valid = checkLevelTitleRequirements(detective2Records);
-                
-                return patrol1Valid || detective2Valid;
-            } else {
-                // Standard case
-                const prereqLevel = prerequisites[level][0];
-                const prereqRecords = allDogRecords.filter(r => r.level === prereqLevel);
-                return checkLevelTitleRequirements(prereqRecords);
             }
         }
 
@@ -1431,371 +1952,4 @@
         }
 
         function displaySummary(records) {
-            const dogName = records[0].callName || 'Unknown';
-            const regNumber = records[0].registrationNumber;
-            
-            const levelSummary = {};
-            
-            // Group records by level
-            records.forEach(record => {
-                if (!record.level) return;
-                
-                if (!levelSummary[record.level]) {
-                    levelSummary[record.level] = {
-                        totalPoints: 0,
-                        judges: new Set(),
-                        records: []
-                    };
-                }
-                
-                if (record.points > 0) {
-                    levelSummary[record.level].totalPoints += record.points;
-                    if (record.judge) {
-                        levelSummary[record.level].judges.add(record.judge);
-                    }
-                }
-                levelSummary[record.level].records.push(record);
-            });
-
-            // Apply validation rules
-            const validatedLevels = applyValidationRules(levelSummary);
-
-            let html = `
-                <div class="dog-info">
-                    <h3>${dogName}</h3>
-                    <p><strong>Registration:</strong> ${regNumber}</p>
-                    <p><strong>Total Trialing Records:</strong> ${records.length}</p>
-                </div>
-            `;
-            
-            getSortedLevels(levelSummary).forEach(level => {
-                const summary = levelSummary[level];
-                const isValidated = validatedLevels[level];
-                const judgeCount = summary.judges.size;
-                
-                const hasTitleRequirements = summary.totalPoints >= 4 && judgeCount >= 2 && isValidated;
-                
-                // For Games levels, also check if they have enough different games
-                let gamesInfo = '';
-                if (level.startsWith('Games ')) {
-                    const uniqueGames = getUniqueGames(summary.records);
-                    gamesInfo = `<div><span>Different Games:</span> <strong>${uniqueGames.size}/2</strong> (${Array.from(uniqueGames).join(', ') || 'None'})</div>`;
-                }
-                
-                // Calculate title points and ace points
-                let titlePoints = 0;
-                let acePoints = 0;
-                let titleStatus = '';
-                let titleClass = '';
-                let titleInfo = null;
-                
-                if (hasTitleRequirements) {
-                    // Find the point at which title was earned (when both 4 points and 2 judges were achieved)
-                    titleInfo = calculateTitlePoints(summary.records);
-                    titlePoints = titleInfo.titlePoints;
-                    const titleDate = titleInfo.titleDate;
-                    acePoints = Math.max(0, summary.totalPoints - titlePoints);
-                    
-                    const officialTitle = titleAbbreviations[level] || level;
-                    
-                    if (acePoints >= 10) {
-                        const aceCount = Math.floor(acePoints / 10);
-                        if (aceCount === 1) {
-                            titleStatus = `${officialTitle}A`;
-                        } else {
-                            titleStatus = `${officialTitle}Ax${aceCount}`;
-                        }
-                        titleClass = 'title-earned';
-                    } else {
-                        titleStatus = `${officialTitle} Title Earned`;
-                        titleClass = 'title-earned';
-                    }
-                } else {
-                    titleStatus = 'No Title Yet';
-                    titleClass = 'no-title';
-                }
-                
-                html += `
-                    <div class="level-summary">
-                        <div class="level-info">
-                            <h4>${level}</h4>
-                            <div class="title-status ${titleClass}">${titleStatus}</div>
-                            
-                            <div class="points-breakdown">
-                                <div><span>Total Q's:</span> <strong>${summary.totalPoints}</strong></div>
-                                <div><span>Judges:</span> <strong>${judgeCount}/2</strong></div>
-                                ${gamesInfo}
-                                ${hasTitleRequirements ? `
-                                    <div><span>Q's Towards Title:</span> <strong>${titlePoints}</strong></div>
-                                    <div><span>Q's Towards Ace:</span> <strong class="ace-info">${acePoints}</strong></div>
-                                    ${titleInfo && titleInfo.titleDate ? `<div style="color: #28a745; font-size: 0.85rem;"><span>Title Earned:</span> <strong>${titleInfo.titleDate instanceof Date && !isNaN(titleInfo.titleDate) ? titleInfo.titleDate.toLocaleDateString() : 'N/A'}</strong></div>` : ''}
-                                    ${(() => {
-                                        const aceEarnedDates = findAceEarnedDates(summary.records, titlePoints);
-                                        if (aceEarnedDates.length > 0) {
-                                            const latestAce = aceEarnedDates[aceEarnedDates.length - 1];
-                                            const aceDate = latestAce.date instanceof Date && !isNaN(latestAce.date) ? latestAce.date.toLocaleDateString() : 'N/A';
-                                            return `<div style="color: #6f42c1; font-size: 0.85rem;"><span>Latest Ace Earned:</span> <strong>${aceDate}</strong></div>`;
-                                        }
-                                        return '';
-                                    })()}
-                                    ${acePoints < 10 && acePoints >= 0 ? `<div class="ace-info"><span>Q's until next Ace:</span> <strong>${10 - (acePoints % 10)}</strong></div>` : 
-                                    acePoints >= 10 ? `<div class="ace-info"><span>Q's until next Ace:</span> <strong>${10 - (acePoints % 10)}</strong></div>` : ''}
-                                ` : `
-                                    <div style="color: #dc3545;">
-                                        <div><span>Need:</span> ${summary.totalPoints < 4 ? `${4 - summary.totalPoints} more Q's` : ''}
-                                        ${summary.totalPoints < 4 && judgeCount < 2 ? ', ' : ''}
-                                        ${judgeCount < 2 ? `${2 - judgeCount} more judge${judgeCount === 0 ? 's' : ''}` : ''}
-                                        ${level.startsWith('Games ') && getUniqueGames(summary.records).size < 2 ? 
-                                            `${(summary.totalPoints < 4 || judgeCount < 2) ? ', ' : ''}${2 - getUniqueGames(summary.records).size} more different game${getUniqueGames(summary.records).size === 0 ? 's' : ''}` : ''}</div>
-                                        ${!isValidated && !level.startsWith('Games ') ? `<div><span>Prerequisites:</span> ${getPrerequisiteText(level)}</div>` : ''}
-                                    </div>
-                                `}
-                            </div>
-                        </div>
-                        <button class="details-btn" onclick="showLevelDetails('${level}', '${dogName}')">Details</button>
-                    </div>
-                `;
-            });
-
-            document.getElementById('summaryContent').innerHTML = html || '<div class="error-message">No level data to display</div>';
-        }
-
-        function calculateTitlePoints(records) {
-            // Sort records chronologically
-            const sortedRecords = records
-                .filter(r => r.points > 0 && r.date instanceof Date && !isNaN(r.date))
-                .sort((a, b) => a.date - b.date);
-            
-            let cumulativePoints = 0;
-            let judges = new Set();
-            
-            for (const record of sortedRecords) {
-                const prevPoints = cumulativePoints;
-                const prevJudgeCount = judges.size;
-                
-                cumulativePoints += record.points;
-                if (record.judge) judges.add(record.judge);
-                
-                // Check if title requirements are NOW met (but weren't before)
-                const nowHasTitle = cumulativePoints >= 4 && judges.size >= 2;
-                const previouslyHadTitle = prevPoints >= 4 && prevJudgeCount >= 2;
-                
-                if (nowHasTitle && !previouslyHadTitle) {
-                    // Title was just earned with this record
-                    // Calculate how many points from this record went to earning the title
-                    let pointsTowardTitle = record.points;
-                    
-                    // If we already had 4+ points but needed another judge
-                    if (prevPoints >= 4 && prevJudgeCount < 2) {
-                        // Only 1 point goes to title (to satisfy the minimum), rest goes to ace
-                        pointsTowardTitle = 1;
-                    }
-                    // If we had 2+ judges but needed more points
-                    else if (prevJudgeCount >= 2 && prevPoints < 4) {
-                        // Only enough points to reach 4 go to title
-                        pointsTowardTitle = 4 - prevPoints;
-                    }
-                    // If we needed both conditions
-                    else if (prevPoints < 4 && prevJudgeCount < 2) {
-                        // Enough points to reach 4, or all the points if less than needed
-                        pointsTowardTitle = Math.min(record.points, 4 - prevPoints);
-                    }
-                    
-                    return {
-                        titlePoints: prevPoints + pointsTowardTitle,
-                        titleDate: record.date
-                    };
-                }
-            }
-            
-            // If we get here, either no title was earned, or all points go to title
-            return {
-                titlePoints: cumulativePoints,
-                titleDate: sortedRecords[sortedRecords.length - 1]?.date
-            };
-        }
-
-        function findAceEarnedDates(records, titlePoints) {
-            const sortedRecords = records
-                .filter(r => r.points > 0 && r.date instanceof Date && !isNaN(r.date))
-                .sort((a, b) => a.date - b.date);
-            
-            let cumulativePoints = 0;
-            const aceEarnedDates = [];
-            
-            for (const record of sortedRecords) {
-                const prevPoints = cumulativePoints;
-                cumulativePoints += record.points;
-                
-                // Check for ace milestones after title was earned
-                if (prevPoints >= titlePoints && cumulativePoints > titlePoints) {
-                    const prevAcePoints = prevPoints - titlePoints;
-                    const newAcePoints = cumulativePoints - titlePoints;
-                    
-                    const prevAceCount = Math.floor(prevAcePoints / 10);
-                    const newAceCount = Math.floor(newAcePoints / 10);
-                    
-                    // If ace count increased, record when each ace was earned
-                    for (let i = prevAceCount + 1; i <= newAceCount; i++) {
-                        aceEarnedDates.push({
-                            aceNumber: i,
-                            date: record.date
-                        });
-                    }
-                }
-            }
-            
-            return aceEarnedDates;
-        }
-
-        function applyValidationRules(levelSummary) {
-            const validatedLevels = {};
-            
-            // First, mark all levels without prerequisites as valid (but check Games separately)
-            Object.keys(levelSummary).forEach(level => {
-                if (!prerequisites[level] && !level.startsWith('Games ')) {
-                    validatedLevels[level] = true;
-                }
-            });
-
-            // Handle Games levels specially - they need 2+ different games
-            Object.keys(levelSummary).forEach(level => {
-                if (level.startsWith('Games ')) {
-                    const summary = levelSummary[level];
-                    const uniqueGames = getUniqueGames(summary.records);
-                    const hasEnoughGames = uniqueGames.size >= 2;
-                    const hasBasicRequirements = summary.totalPoints >= 4 && summary.judges.size >= 2;
-                    validatedLevels[level] = hasEnoughGames && hasBasicRequirements;
-                }
-            });
-
-            // Then validate levels with prerequisites
-            Object.keys(prerequisites).forEach(level => {
-                if (!levelSummary[level]) {
-                    validatedLevels[level] = false;
-                    return;
-                }
-
-                let meetsPrereqCriteria = false;
-
-                if (level === "Investigator 3") {
-                    // Special case: requires either Patrol 1 OR Detective 2
-                    const patrol1Valid = checkLevelRequirements(levelSummary["Patrol 1"]);
-                    const detective2Valid = checkLevelRequirements(levelSummary["Detective 2"]);
-                    meetsPrereqCriteria = patrol1Valid || detective2Valid;
-                } else {
-                    // Standard case: check direct prerequisite
-                    const prereqLevel = prerequisites[level][0];
-                    meetsPrereqCriteria = checkLevelRequirements(levelSummary[prereqLevel]);
-                }
-
-                validatedLevels[level] = meetsPrereqCriteria;
-            });
-
-            return validatedLevels;
-        }
-
-        function getUniqueGames(records) {
-            const games = new Set();
-            const gamesList = ['BJ', 'C', 'P', 'T', 'GB'];
-            
-            records.forEach(record => {
-                if (record.results) {
-                    const results = record.results.toString().toUpperCase();
-                    gamesList.forEach(game => {
-                        if (results.includes(game)) {
-                            games.add(game);
-                        }
-                    });
-                }
-            });
-            
-            return games;
-        }
-
-        function checkLevelRequirements(levelData) {
-            if (!levelData) return false;
-            return levelData.totalPoints >= 4 && levelData.judges.size >= 2;
-        }
-
-        function getPrerequisiteText(level) {
-            if (!prerequisites[level]) return 'None';
-            
-            if (level === "Investigator 3") {
-                return 'Either "Patrol 1" OR "Detective 2" (4+ Q\'s, 2+ judges each)';
-            }
-            
-            return `"${prerequisites[level][0]}" (4+ Q's, 2+ judges)`;
-        }
-
-        function showLevelDetails(level, dogName) {
-            const records = currentDogRecords.filter(r => r.level === level);
-            
-            document.getElementById('modalTitle').textContent = `${dogName} - ${level} Details`;
-            
-            let html = `
-                <table class="records-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Judge</th>
-                            <th>Results</th>
-                            <th>Q's</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            records.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-            records.forEach(record => {
-                const date = record.date && record.date instanceof Date && !isNaN(record.date) 
-                    ? record.date.toLocaleDateString() 
-                    : 'N/A';
-                const pointsClass = record.points > 0 ? 'points-badge' : 'points-badge zero';
-                
-                html += `
-                    <tr>
-                        <td>${date}</td>
-                        <td>${record.judge || 'N/A'}</td>
-                        <td>${record.results || 'N/A'}</td>
-                        <td><span class="${pointsClass}">${record.points}</span></td>
-                    </tr>
-                `;
-            });
-
-            html += '</tbody></table>';
-            
-            document.getElementById('modalBody').innerHTML = html;
-            document.getElementById('detailsModal').style.display = 'block';
-        }
-
-        function closeModal() {
-            document.getElementById('detailsModal').style.display = 'none';
-        }
-
-        // Initialize - but make it more immediate
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM loaded, starting data load...');
-            // Show we're ready immediately
-            document.getElementById('lastUpdated').textContent = 'Loading data...';
-            
-            // Load logos immediately
-            loadLogos();
-            
-            // Load data with a small delay to ensure DOM is ready
-            setTimeout(() => {
-                loadDataFromFile();
-            }, 100);
-        });
-
-        // Close modal when clicking outside of it
-        window.onclick = function(event) {
-            const modal = document.getElementById('detailsModal');
-            if (event.target === modal) {
-                closeModal();
-            }
-        };
-    </script>
-</body>
-</html>
+            const dogName = records[0].callName || '
