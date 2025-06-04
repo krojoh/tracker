@@ -1,4 +1,4 @@
-function displaySummary(records) {
+        function displaySummary(records) {
             const dogName = records[0].callName || 'Unknown';
             const regNumber = records[0].registrationNumber;
             
@@ -340,6 +340,33 @@ function displaySummary(records) {
 
         function closeModal() {
             document.getElementById('detailsModal').style.display = 'none';
+        }
+
+        function debugData() {
+            console.log('=== DEBUG DATA ===');
+            console.log('Total records loaded:', trialingData.length);
+            
+            if (trialingData.length > 0) {
+                console.log('First 5 records:', trialingData.slice(0, 5));
+                
+                // Show all unique middle parts
+                const middleParts = new Set();
+                trialingData.forEach(record => {
+                    if (record.registrationNumber) {
+                        const parts = record.registrationNumber.split('-');
+                        if (parts.length >= 2) {
+                            middleParts.add(parts[1]);
+                        }
+                    }
+                });
+                
+                console.log('All unique owner IDs (middle 4 digits):', Array.from(middleParts).sort());
+                console.log('Total unique owners:', middleParts.size);
+                
+                alert(`Data loaded: ${trialingData.length} records\nUnique owners: ${middleParts.size}\nCheck console for details`);
+            } else {
+                alert('No data loaded yet. Please wait for data to load or upload a file.');
+            }
         }
 
         // Initialize - but make it more immediate
@@ -870,6 +897,7 @@ function displaySummary(records) {
                        onkeypress="handleKeyPress(event)">
                 <button class="search-btn" onclick="searchDog()">Search Dog Records</button>
                 <button class="owner-view-btn" onclick="showOwnerView()">Owner View by ID</button>
+                <button onclick="debugData()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem;">Debug Data</button>
             </div>
         </div>
 
@@ -1135,9 +1163,14 @@ function displaySummary(records) {
 
         function loadOwnerView() {
             const ownerIdInput = document.getElementById('ownerIdInput');
-            if (!ownerIdInput) return;
+            if (!ownerIdInput) {
+                console.error('Owner ID input not found');
+                return;
+            }
             
             const ownerId = ownerIdInput.value.trim();
+            console.log('Searching for owner ID:', ownerId);
+            
             if (!ownerId) {
                 alert('Please enter the middle 4 digits');
                 return;
@@ -1148,30 +1181,45 @@ function displaySummary(records) {
                 return;
             }
 
+            console.log('Total trialing data records:', trialingData.length);
+
             // Find all dogs for this owner
             const ownerDogs = {};
+            let matchCount = 0;
             
             trialingData.forEach(record => {
                 if (!record.registrationNumber) return;
                 
                 const parts = record.registrationNumber.split('-');
-                if (parts.length >= 2 && parts[1] === ownerId) {
-                    const regNumber = record.registrationNumber;
-                    const callName = record.callName || 'Unknown';
+                if (parts.length >= 2) {
+                    console.log('Checking registration:', record.registrationNumber, 'Middle part:', parts[1]);
                     
-                    if (!ownerDogs[regNumber]) {
-                        ownerDogs[regNumber] = {
-                            callName: callName,
-                            regNumber: regNumber,
-                            records: []
-                        };
+                    if (parts[1] === ownerId) {
+                        matchCount++;
+                        const regNumber = record.registrationNumber;
+                        const callName = record.callName || 'Unknown';
+                        
+                        if (!ownerDogs[regNumber]) {
+                            ownerDogs[regNumber] = {
+                                callName: callName,
+                                regNumber: regNumber,
+                                records: []
+                            };
+                        }
+                        ownerDogs[regNumber].records.push(record);
                     }
-                    ownerDogs[regNumber].records.push(record);
                 }
             });
 
+            console.log('Found', matchCount, 'matching records for owner', ownerId);
+            console.log('Unique dogs found:', Object.keys(ownerDogs).length);
+            console.log('Dogs:', ownerDogs);
+
             if (Object.keys(ownerDogs).length === 0) {
-                alert(`No dogs found for owner ID: ${ownerId}`);
+                // Show some example registration numbers for debugging
+                const sampleRegs = trialingData.slice(0, 10).map(r => r.registrationNumber).filter(r => r);
+                console.log('Sample registration numbers in data:', sampleRegs);
+                alert(`No dogs found for owner ID: ${ownerId}\n\nSample registration numbers in data: ${sampleRegs.slice(0, 3).join(', ')}`);
                 return;
             }
 
