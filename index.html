@@ -132,15 +132,7 @@
             box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
         }
 
-        .debug-btn {
-            padding: 10px 20px;
-            background: #dc3545;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
+
 
         .main-content {
             padding: 30px;
@@ -550,7 +542,6 @@
                        onkeypress="handleKeyPress(event)">
                 <button class="search-btn" onclick="searchDog()">Search Dog Records</button>
                 <button class="owner-view-btn" onclick="showOwnerView()">Owner View by ID</button>
-                <button class="debug-btn" onclick="debugData()">Debug Data</button>
             </div>
         </div>
 
@@ -696,31 +687,7 @@
             img.src = 'cwags-logo.png';
         }
 
-        function debugData() {
-            console.log('=== DEBUG DATA ===');
-            console.log('Total records loaded:', trialingData.length);
-            
-            if (trialingData.length > 0) {
-                console.log('First 5 records:', trialingData.slice(0, 5));
-                
-                const middleParts = new Set();
-                trialingData.forEach(record => {
-                    if (record.registrationNumber) {
-                        const parts = record.registrationNumber.split('-');
-                        if (parts.length >= 2) {
-                            middleParts.add(parts[1]);
-                        }
-                    }
-                });
-                
-                console.log('All unique owner IDs (middle 4 digits):', Array.from(middleParts).sort());
-                console.log('Total unique owners:', middleParts.size);
-                
-                alert(`Data loaded: ${trialingData.length} records\nUnique owners: ${middleParts.size}\nCheck console for details`);
-            } else {
-                alert('No data loaded yet. Please wait for data to load or upload a file.');
-            }
-        }
+
 
         function showOwnerView() {
             if (trialingData.length === 0) {
