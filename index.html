@@ -1,4 +1,4 @@
-</html><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -489,6 +489,44 @@
             background: #5a6268;
             transform: translateY(-1px);
         }
+
+        .legend-container {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .legend-container h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .legend-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-box {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+
+        .requirements-text {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -620,48 +658,43 @@
             "Games 1", "Games 2", "Games 3", "Games 4"
         ];
 
-        async function loadLogos() {
-    const canvases = ['leftLogo', 'rightLogo'];
-    
-    // Try to load the logo image
-    const img = new Image();
-    img.onload = function() {
-        // Image loaded successfully - draw it on both canvases
-        canvases.forEach(canvasId => {
-            const canvas = document.getElementById(canvasId);
-            if (canvas) {
-                const ctx = canvas.getContext('2d');
-               ctx.clearRect(0, 0, 160, 160);
-// and later...
-const scale = Math.min(160 / img.width, 160 / img.height) * 0.9;
-const x = (160 - scaledWidth) / 2;
-const y = (160 - scaledHeight) / 2;
-                
-                ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
-            }
-        });
-    };
-    
-    img.onerror = function() {
-        // If image fails to load, fall back to text logos
-        console.log('Logo image not found, using text fallback');
-        canvases.forEach(canvasId => {
-            const canvas = document.getElementById(canvasId);
-            if (canvas) {
-                const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, 80, 80);
-                ctx.fillStyle = 'white';
-                ctx.font = 'bold 12px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('C-WAGS', 80, 80);  // Changed from 40, 40
-            }
-        });
-    };
-    
-    // Start loading the image
-    img.src = 'cwags-logo.png';
-}
+        function loadLogos() {
+            const canvases = ['leftLogo', 'rightLogo'];
+            
+            const img = new Image();
+            img.onload = function() {
+                canvases.forEach(canvasId => {
+                    const canvas = document.getElementById(canvasId);
+                    if (canvas) {
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, 160, 160);
+                        const scale = Math.min(160 / img.width, 160 / img.height) * 0.9;
+                        const scaledWidth = img.width * scale;
+                        const scaledHeight = img.height * scale;
+                        const x = (160 - scaledWidth) / 2;
+                        const y = (160 - scaledHeight) / 2;
+                        ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+                    }
+                });
+            };
+            
+            img.onerror = function() {
+                canvases.forEach(canvasId => {
+                    const canvas = document.getElementById(canvasId);
+                    if (canvas) {
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, 160, 160);
+                        ctx.fillStyle = 'white';
+                        ctx.font = 'bold 12px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('C-WAGS', 80, 80);
+                    }
+                });
+            };
+            
+            img.src = 'cwags-logo.png';
+        }
 
         function debugData() {
             console.log('=== DEBUG DATA ===');
@@ -731,7 +764,6 @@ const y = (160 - scaledHeight) / 2;
             }
             
             const ownerId = ownerIdInput.value.trim();
-            console.log('Searching for owner ID:', ownerId);
             
             if (!ownerId) {
                 alert('Please enter the middle 4 digits');
@@ -742,8 +774,6 @@ const y = (160 - scaledHeight) / 2;
                 alert('Please enter exactly 4 digits');
                 return;
             }
-
-            console.log('Total trialing data records:', trialingData.length);
 
             const ownerDogs = {};
             let matchCount = 0;
@@ -770,13 +800,8 @@ const y = (160 - scaledHeight) / 2;
                 }
             });
 
-            console.log('Found', matchCount, 'matching records for owner', ownerId);
-            console.log('Unique dogs found:', Object.keys(ownerDogs).length);
-
             if (Object.keys(ownerDogs).length === 0) {
-                const sampleRegs = trialingData.slice(0, 10).map(r => r.registrationNumber).filter(r => r);
-                console.log('Sample registration numbers in data:', sampleRegs);
-                alert(`No dogs found for owner ID: ${ownerId}\n\nSample registration numbers in data: ${sampleRegs.slice(0, 3).join(', ')}`);
+                alert(`No dogs found for owner ID: ${ownerId}`);
                 return;
             }
 
@@ -790,7 +815,7 @@ const y = (160 - scaledHeight) / 2;
                 return nameA.localeCompare(nameB);
             });
 
-           let html = `
+            let html = `
                 <div class="owner-header" style="text-align: center; padding: 20px; background: linear-gradient(45deg, #667eea, #764ba2); color: white; margin-bottom: 20px; border-radius: 12px;">
                     <h2>Owner View - ID: ${ownerId}</h2>
                     <p>${Object.keys(ownerDogs).length} dog(s) found</p>
@@ -838,57 +863,18 @@ const y = (160 - scaledHeight) / 2;
 
             html += `</tbody></table>
                     
-                    <div class="legend-container" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                        <h4 style="margin-bottom: 10px;">Legend:</h4>
-                        <div class="legend-grid" style="display: flex; flex-wrap: wrap; gap: 15px; font-size: 0.9rem;">
-                            <div class="legend-item"><span class="legend-box q-needed" style="background: #fff3cd; padding: 2px 6px; border-radius: 3px;">2Q</span> Q's needed for title</div>
-                            <div class="legend-item"><span class="legend-box title-ready" style="background: #d4edda; padding: 2px 6px; border-radius: 3px;">Title!</span> Title earned, ready to submit</div>
-                            <div class="legend-item"><span class="legend-box ace-progress" style="background: #e7e3ff; padding: 2px 6px; border-radius: 3px;">3Q→Ace</span> Q's needed for next Ace</div>
-                            <div class="legend-item"><span class="legend-box no-data" style="background: #f8d7da; padding: 2px 6px; border-radius: 3px;">-</span> No qualifying scores</div>
+                    <div class="legend-container">
+                        <h4>Legend:</h4>
+                        <div class="legend-grid">
+                            <div class="legend-item"><span class="legend-box q-needed" style="background: #fff3cd; color: #856404;">2Q</span> Q's needed for title</div>
+                            <div class="legend-item"><span class="legend-box title-ready" style="background: #d4edda; color: #155724;">Title!</span> Title earned, ready to submit</div>
+                            <div class="legend-item"><span class="legend-box ace-progress" style="background: #e7e3ff; color: #6f42c1;">3Q→Ace</span> Q's needed for next Ace</div>
+                            <div class="legend-item"><span class="legend-box no-data" style="background: #f8d7da; color: #721c24;">-</span> No qualifying scores</div>
                         </div>
-                        <p class="requirements-text" style="margin-top: 10px; font-size: 0.85rem; color: #6c757d;">
+                        <p class="requirements-text">
                             <strong>Requirements:</strong> 4+ Q's from 2+ different judges | Games levels need 2+ different games | Prerequisites must be met for advanced levels
                         </p>
                     </div>
-                </div>
-            `;
-
-            sortedDogs.forEach(regNumber => {
-                const dog = ownerDogs[regNumber];
-                html += `<th class="dog-header">${dog.callName}<br><small>${regNumber}</small></th>`;
-            });
-
-            html += `</tr></thead><tbody>`;
-
-            levelOrder.forEach(level => {
-                html += `<tr><td class="level-cell">${level}</td>`;
-                
-                sortedDogs.forEach(regNumber => {
-                    const dog = ownerDogs[regNumber];
-                    const dogRecords = dog.records.filter(r => r.level === level);
-                    const analysis = analyzeProgressForOwnerView(dogRecords, level, dog.records);
-                    
-                    html += `<td class="${analysis.cellClass}">${analysis.cellContent}</td>`;
-                });
-                
-                html += `</tr>`;
-            });
-
-            html += `</tbody></table></div>`;
-
-            html += `
-                <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                    <h4 style="margin-bottom: 10px;">Legend:</h4>
-                    <div style="display: flex; flex-wrap: wrap; gap: 15px; font-size: 0.9rem;">
-                        <div><span style="background: #fff3cd; padding: 2px 6px; border-radius: 3px;">2Q</span> Q's needed for title</div>
-                        <div><span style="background: #d4edda; padding: 2px 6px; border-radius: 3px;">Title!</span> Title earned, ready to submit</div>
-                        <div><span style="background: #e7e3ff; padding: 2px 6px; border-radius: 3px;">3Q→Ace</span> Q's needed for next Ace</div>
-                        <div><span style="background: #f8d7da; padding: 2px 6px; border-radius: 3px;">-</span> No qualifying scores</div>
-                    </div>
-                    <p style="margin-top: 10px; font-size: 0.85rem; color: #6c757d;">
-                        <strong>Requirements:</strong> 4+ Q's from 2+ judges for title | Games levels need 2+
-                          <strong>Requirements:</strong> 4+ Q's from 2+ judges for title | Games levels need 2+ different games | Prerequisites must be met
-                    </p>
                 </div>
             `;
             
@@ -1021,55 +1007,16 @@ const y = (160 - scaledHeight) / 2;
                         .title-ready { background: #d4edda !important; color: #155724 !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                         .ace-progress { background: #e7e3ff !important; color: #6f42c1 !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                         .no-data { background: #f8f9fa !important; color: #6c757d !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        /* Legend styles for printing */
-            .legend-container {
-                margin-top: 15px;
-                page-break-inside: avoid;
-                font-size: 8px;
-                border-top: 1px solid #333;
-                padding-top: 10px;
-            }
-            .legend-container h4 {
-                font-size: 10px;
-                margin-bottom: 8px;
-                color: #2c3e50;
-            }
-            .legend-grid {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 15px;
-                margin-bottom: 8px;
-            }
-            .legend-item {
-                display: flex;
-                align-items: center;
-                gap: 5px;
-            }
-            .legend-box {
-                display: inline-block;
-                padding: 2px 6px;
-                border-radius: 3px;
-                font-weight: 600;
-                font-size: 7px;
-            }
-            .legend-box.q-needed { background: #fff3cd !important; color: #856404 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .legend-box.title-ready { background: #d4edda !important; color: #155724 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .legend-box.ace-progress { background: #e7e3ff !important; color: #6f42c1 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .legend-box.no-data { background: #f8d7da !important; color: #721c24 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .requirements-text {
-                font-size: 7px;
-                color: #666;
-                margin-top: 8px;
-                line-height: 1.3;
-            }
+                        .legend-container { margin-top: 15px; page-break-inside: avoid; font-size: 8px; border-top: 1px solid #333; padding-top: 10px; }
+                        .legend-container h4 { font-size: 10px; margin-bottom: 8px; color: #2c3e50; }
+                        .legend-grid { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 8px; }
+                        .legend-item { display: flex; align-items: center; gap: 5px; }
+                        .legend-box { display: inline-block; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 7px; }
+                        .requirements-text { font-size: 7px; color: #666; margin-top: 8px; line-height: 1.3; }
                     </style>
                 </head>
                 <body>
                     ${clonedContent.innerHTML}
-                    <div style="margin-top: 15px; font-size: 8px;">
-                        <h4>Legend:</h4>
-                        <p><strong>Requirements:</strong> 4+ Q's from 2+ different judges | Games levels need 2+ different games | Prerequisites must be met for advanced levels</p>
-                    </div>
                 </body>
                 </html>
             `);
@@ -1672,4 +1619,5 @@ const y = (160 - scaledHeight) / 2;
             }
         };
     </script>
-</body>    
+</body>
+</html>
