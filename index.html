@@ -19,6 +19,9 @@
             searchDog();
         }
 
+        // Make the function globally accessible
+        window.searchDogFromOwnerView = searchDogFromOwnerView;
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -797,7 +800,7 @@
 
             sortedDogs.forEach(regNumber => {
                 const dog = ownerDogs[regNumber];
-                html += `<th class="dog-header" onclick="searchDogFromOwnerView('${regNumber}')" title="Click to view ${dog.callName}'s detailed records">${dog.callName}<br><small>${regNumber}</small></th>`;
+                html += `<th class="dog-header" onclick="window.searchDogFromOwnerView('${regNumber}')" title="Click to view ${dog.callName}'s detailed records">${dog.callName}<br><small>${regNumber}</small></th>`;
             });
 
             html += `</tr></thead><tbody>`;
@@ -960,36 +963,37 @@
                     <title>C-WAGS Owner Progress Report</title>
                     <style>
                         @page { size: 8.5in 11in; margin: 0.5in; }
-                        body { font-family: Arial, sans-serif; font-size: 10px; line-height: 1.2; margin: 0; padding: 0; }
-                        .print-header h2 { font-size: 16px; margin-bottom: 5px; color: #2c3e50; }
-                        .print-header p { font-size: 12px; color: #666; margin-bottom: 15px; }
-                        .owner-grid { width: 100%; border-collapse: collapse; font-size: 9px; }
-                        .owner-grid th, .owner-grid td { border: 1px solid #333; padding: 4px 2px; text-align: center; vertical-align: middle; }
-                        .owner-grid th { background: #2c3e50 !important; color: white !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .owner-grid .level-cell { background: #bdc3c7 !important; color: #2c3e50 !important; font-weight: 600; text-align: left; padding-left: 6px; font-size: 8px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        body { font-family: Arial, sans-serif; font-size: 12px; line-height: 1.3; margin: 0; padding: 0; }
+                        .print-header h2 { font-size: 18px; margin-bottom: 5px; color: #2c3e50; }
+                        .print-header p { font-size: 14px; color: #666; margin-bottom: 15px; }
+                        .owner-grid { width: 100%; border-collapse: collapse; font-size: 11px; }
+                        .owner-grid th, .owner-grid td { border: 1px solid #333; padding: 6px 3px; text-align: center; vertical-align: middle; }
+                        .owner-grid th { background: #2c3e50 !important; color: white !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 11px; }
+                        .owner-grid .level-cell { background: #bdc3c7 !important; color: #2c3e50 !important; font-weight: 600; text-align: left; padding-left: 8px; font-size: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                         .dog-header-horizontal { 
                             background: #ecf0f1 !important; 
                             color: #2c3e50 !important; 
                             width: 100px !important;
-                            font-size: 7px !important; 
-                            padding: 6px 4px !important; 
+                            font-size: 9px !important; 
+                            padding: 8px 4px !important; 
                             text-align: center !important;
                             writing-mode: horizontal-tb !important;
                             -webkit-print-color-adjust: exact !important; 
                             print-color-adjust: exact !important;
                             white-space: normal !important;
-                            line-height: 1.1 !important;
+                            line-height: 1.2 !important;
+                            font-weight: 600 !important;
                         }
-                        .q-needed { background: #fff3cd !important; color: #856404 !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .title-ready { background: #d4edda !important; color: #155724 !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .ace-progress { background: #e7e3ff !important; color: #6f42c1 !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .no-data { background: #f8f9fa !important; color: #6c757d !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        .legend-container { margin-top: 15px; page-break-inside: avoid; font-size: 8px; border-top: 1px solid #333; padding-top: 10px; }
-                        .legend-container h4 { font-size: 10px; margin-bottom: 8px; color: #2c3e50; }
+                        .q-needed { background: #fff3cd !important; color: #856404 !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 10px; }
+                        .title-ready { background: #d4edda !important; color: #155724 !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 10px; }
+                        .ace-progress { background: #e7e3ff !important; color: #6f42c1 !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 10px; }
+                        .no-data { background: #f8f9fa !important; color: #6c757d !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-size: 10px; }
+                        .legend-container { margin-top: 15px; page-break-inside: avoid; font-size: 10px; border-top: 1px solid #333; padding-top: 10px; }
+                        .legend-container h4 { font-size: 12px; margin-bottom: 8px; color: #2c3e50; }
                         .legend-grid { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 8px; }
                         .legend-item { display: flex; align-items: center; gap: 5px; }
-                        .legend-box { display: inline-block; padding: 2px 6px; border-radius: 3px; font-weight: 600; font-size: 7px; }
-                        .requirements-text { font-size: 7px; color: #666; margin-top: 8px; line-height: 1.3; }
+                        .legend-box { display: inline-block; padding: 3px 8px; border-radius: 3px; font-weight: 600; font-size: 9px; }
+                        .requirements-text { font-size: 9px; color: #666; margin-top: 8px; line-height: 1.4; }
                     </style>
                 </head>
                 <body>
