@@ -1207,6 +1207,14 @@
             searchDog();
         }
 
+        function searchDogFromOwnerView(regNumber) {
+            // Fill in the search input with the registration number
+            document.getElementById('searchInput').value = regNumber;
+            
+            // Perform the search
+            searchDog();
+        }
+
         function displaySummary(records) {
             const dogName = records[0].callName || 'Unknown';
             const regNumber = records[0].registrationNumber;
