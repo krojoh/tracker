@@ -11,6 +11,14 @@
             box-sizing: border-box;
         }
 
+        function searchDogFromOwnerView(regNumber) {
+            // Fill in the search input with the registration number
+            document.getElementById('searchInput').value = regNumber;
+            
+            // Perform the search
+            searchDog();
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -428,6 +436,15 @@
             font-size: 0.8rem;
             padding: 8px 4px;
             line-height: 1.2;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .owner-grid th.dog-header:hover {
+            background: #e9ecef;
+            color: #007bff;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .owner-grid tr:nth-child(even) {
@@ -780,7 +797,7 @@
 
             sortedDogs.forEach(regNumber => {
                 const dog = ownerDogs[regNumber];
-                html += `<th class="dog-header">${dog.callName}<br><small>${regNumber}</small></th>`;
+                html += `<th class="dog-header" onclick="searchDogFromOwnerView('${regNumber}')" title="Click to view ${dog.callName}'s detailed records">${dog.callName}<br><small>${regNumber}</small></th>`;
             });
 
             html += `</tr></thead><tbody>`;
